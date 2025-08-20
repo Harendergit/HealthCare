@@ -1,0 +1,199 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for role checking
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData().role == role;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isPatient() {
+      return hasRole('patient');
+    }
+
+    function isFamily() {
+      return hasRole('family');
+    }
+
+    function isResponder() {
+      return hasRole('responder');
+    }
+    
+    // Users collection - users can read/write their own profile
+    match /users/{userId} {
+      // Allow users to create and manage their own profile
+      allow read, write: if isOwner(userId);
+
+      // Allow authenticated users to read user profiles (needed for role checking)
+      allow read: if isAuthenticated();
+    }
+    
+    // Vitals collection - real-time health monitoring data
+    match /vitals/{vitalId} {
+      // Patients can write their own vitals
+      allow create, update: if isAuthenticated() && 
+        resource.data.patientId == request.auth.uid;
+      
+      // Patients can read their own vitals
+      allow read: if isAuthenticated() && 
+        resource.data.patientId == request.auth.uid;
+      
+      // Family members can read vitals of connected patients
+      allow read: if isFamily() && 
+        exists(/databases/$(database)/documents/familyConnections/$(request.auth.uid + '_' + resource.data.patientId));
+      
+      // Responders can read all vitals for emergency response
+      allow read: if isResponder();
+      
+      // System can write vitals (for automated devices)
+      allow write: if isAuthenticated();
+    }
+    
+    // Emergency alerts collection
+    match /emergencyAlerts/{alertId} {
+      // System can create alerts
+      allow create: if isAuthenticated();
+      
+      // Responders can read and update alerts
+      allow read, update: if isResponder();
+      
+      // Family members can read alerts for their connected patients
+      allow read: if isFamily() && 
+        exists(/databases/$(database)/documents/familyConnections/$(request.auth.uid + '_' + resource.data.patientId));
+      
+      // Patients can read their own alerts
+      allow read: if isAuthenticated() && 
+        resource.data.patientId == request.auth.uid;
+    }
+    
+    // Family connections collection
+    match /familyConnections/{connectionId} {
+      // Family members can create connections
+      allow create: if isFamily() && 
+        request.resource.data.familyUserId == request.auth.uid;
+      
+      // Family members and patients can read their connections
+      allow read: if isAuthenticated() && (
+        resource.data.familyUserId == request.auth.uid ||
+        resource.data.patientUserId == request.auth.uid
+      );
+      
+      // Family members can update their own connections
+      allow update: if isAuthenticated() && 
+        resource.data.familyUserId == request.auth.uid;
+      
+      // Responders can read connections for emergency response
+      allow read: if isResponder();
+    }
+    
+    // Medical profiles collection
+    match /medicalProfiles/{profileId} {
+      // Patients can create and update their own medical profiles
+      allow create, update: if isPatient() && 
+        request.resource.data.patientId == request.auth.uid;
+      
+      // Patients can read their own profiles
+      allow read: if isAuthenticated() && 
+        resource.data.patientId == request.auth.uid;
+      
+      // Family members can read profiles of connected patients
+      allow read: if isFamily() && 
+        exists(/databases/$(database)/documents/familyConnections/$(request.auth.uid + '_' + resource.data.patientId));
+      
+      // Responders can read all medical profiles for emergency response
+      allow read: if isResponder();
+    }
+    
+    // Device connections collection
+    match /deviceConnections/{connectionId} {
+      // Users can manage their own device connections
+      allow read, write: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      // Responders can read device connections for emergency response
+      allow read: if isResponder();
+    }
+    
+    // Health check collection (for system monitoring)
+    match /health_check/{document} {
+      // Allow public read/write for system health monitoring
+      allow read, write: if true;
+    }
+    
+    // Audit logs collection (for compliance and monitoring)
+    match /auditLogs/{logId} {
+      // Only system can write audit logs
+      allow create: if isAuthenticated();
+      
+      // Responders and system admins can read audit logs
+      allow read: if isResponder();
+    }
+    
+    // Emergency contacts collection
+    match /emergencyContacts/{contactId} {
+      // Patients can manage their emergency contacts
+      allow read, write: if isPatient() && 
+        resource.data.patientId == request.auth.uid;
+      
+      // Family members can read emergency contacts of connected patients
+      allow read: if isFamily() && 
+        exists(/databases/$(database)/documents/familyConnections/$(request.auth.uid + '_' + resource.data.patientId));
+      
+      // Responders can read all emergency contacts
+      allow read: if isResponder();
+    }
+    
+    // Medication schedules collection
+    match /medicationSchedules/{scheduleId} {
+      // Patients can manage their medication schedules
+      allow read, write: if isPatient() && 
+        resource.data.patientId == request.auth.uid;
+      
+      // Family members can read schedules of connected patients
+      allow read: if isFamily() && 
+        exists(/databases/$(database)/documents/familyConnections/$(request.auth.uid + '_' + resource.data.patientId));
+      
+      // Responders can read medication schedules for emergency response
+      allow read: if isResponder();
+    }
+    
+    // Notifications collection
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      // System can create notifications
+      allow create: if isAuthenticated();
+      
+      // Users can update their own notifications (mark as read, etc.)
+      allow update: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // Settings collection (user preferences)
+    match /settings/{userId} {
+      // Users can manage their own settings
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Default deny rule for any other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
