@@ -35,7 +35,15 @@ The system is designed as a flexible, scalable, and scientifically rigorous engi
 -   `compare_anomalies.py`: Uses an LLM to generate a qualitative report comparing the results of the A/B test.
 -   `tests/`: Contains all unit tests to ensure code reliability.
 
-## How to Use
+  📈 Future Enhancements
+     - ✅ Add GPS and BP ingestion
+     - ✅ Real-time alerting via SMS/email
+     - 🔜 Mobile app integration
+     - 🔜 Historical anomaly trends
+     - 🔜 Role-based access and user aut
+
+
+## How to Use For Backend
 
 ### 1. Setup
 Install the required Python packages:
@@ -69,24 +77,21 @@ Triggers the full analysis pipeline for a specified date range.
 curl "[http://127.0.0.1:5000/analyze_range?start_date=2025-07-01&end_date=2025-07-07&target=heart_rate](http://127.0.0.1:5000/analyze_range?start_date=2025-07-01&end_date=2025-07-07&target=heart_rate)"
 ```
 
-### 5. Running the A/B Test & Comparison
+## 💻 Frontend Setup
 
-To generate the report that justifies the complex model (as requested by your PI), run the following scripts in order:
-
-**A. Run the A/B Test:**
-This will create two files: `simple_model_anomalies.csv` and `complex_model_anomalies.csv`.
+1. Open terminal and go to the frontend folder:
 ```bash
-python benchmarker.py
-```
+cd frontend
+2.- Install all required packages:
+npm install
+3. - Start the frontend app:
+npm run start
 
-**B. Generate the LLM Comparison Report:**
-This reads the two CSV files and generates a qualitative report.
-```bash
-python compare_anomalies.py
-```
+Make sure your backend is running at http://localhost:5000 so the frontend can fetch data and display anomaly alerts.
 
-### 6. Running Unit Tests
-To verify that all components are working correctly, run the unit test suite:
-```bash
-python -m unittest discover
-```
+
+
+
+
+
+- 
